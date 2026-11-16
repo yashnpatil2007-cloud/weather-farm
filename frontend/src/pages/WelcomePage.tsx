@@ -42,7 +42,7 @@ export default function WelcomePage() {
         </div>
 
         <div className="mt-10">
-          <Button size="lg" className="bg-white !text-farm-700 hover:!bg-farm-50" onClick={handleStart}>
+          <Button variant="white" size="lg" className="!bg-white !text-farm-800 hover:!bg-farm-50 shadow-lg text-lg font-bold" onClick={handleStart}>
             {t('welcome.getStarted')} →
           </Button>
         </div>

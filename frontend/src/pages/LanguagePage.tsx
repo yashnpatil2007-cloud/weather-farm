@@ -46,8 +46,9 @@ export default function LanguagePage() {
 
         <div className="mt-8 w-full max-w-md">
           <Button
+            variant="white"
             size="lg"
-            className="w-full bg-white text-farm-700 hover:bg-farm-50"
+            className="w-full !text-farm-800 !bg-white hover:!bg-farm-50 shadow-lg text-lg font-bold"
             onClick={() => (user ? navigate('/') : navigate('/auth'))}
           >
             {user ? t('nav.dashboard') : t('language.continue')} →
