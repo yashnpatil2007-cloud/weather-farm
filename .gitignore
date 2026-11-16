@@ -45,3 +45,6 @@ Thumbs.db
 *.pdf
 *.docx
 issue images/
+
+# Local Netlify folder
+.netlify
