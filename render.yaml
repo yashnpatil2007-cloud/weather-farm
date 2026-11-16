@@ -24,4 +24,20 @@ services:
       - key: WEATHER_CACHE_SECONDS
         value: 900
       - key: CORS_ORIGINS
-        value: "http://localhost:5173,http://127.0.0.1:5173"
+        value: "*"
+
+  - type: web
+    name: weather-farm-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    plan: free
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://weather-farm-api.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
