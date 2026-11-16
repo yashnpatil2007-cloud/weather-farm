@@ -45,14 +45,29 @@ export default function LanguagePage() {
         </div>
 
         <div className="mt-8 w-full max-w-md">
-          <Button
-            variant="white"
-            size="lg"
-            className="w-full !text-farm-800 !bg-white hover:!bg-farm-50 shadow-lg text-lg font-bold"
+          <button
+            type="button"
             onClick={() => (user ? navigate('/') : navigate('/auth'))}
+            className="w-full py-4 px-6 rounded-xl font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+            style={{
+              backgroundColor: '#ffffff',
+              color: '#15803d',
+              border: 'none',
+              outline: 'none',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f0fdf4'
+              e.currentTarget.style.color = '#14532d'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#ffffff'
+              e.currentTarget.style.color = '#15803d'
+            }}
           >
-            {user ? t('nav.dashboard') : t('language.continue')} →
-          </Button>
+            <span style={{ color: '#15803d', fontWeight: 700, fontSize: '1.125rem' }}>
+              {user ? t('nav.dashboard') : t('language.continue')} →
+            </span>
+          </button>
         </div>
       </div>
     </div>

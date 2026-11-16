@@ -42,9 +42,29 @@ export default function WelcomePage() {
         </div>
 
         <div className="mt-10">
-          <Button variant="white" size="lg" className="!bg-white !text-farm-800 hover:!bg-farm-50 shadow-lg text-lg font-bold" onClick={handleStart}>
-            {t('welcome.getStarted')} →
-          </Button>
+          <button
+            type="button"
+            onClick={handleStart}
+            className="py-4 px-8 rounded-xl font-bold text-lg shadow-lg transition-all inline-flex items-center justify-center gap-2 cursor-pointer"
+            style={{
+              backgroundColor: '#ffffff',
+              color: '#15803d',
+              border: 'none',
+              outline: 'none',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f0fdf4'
+              e.currentTarget.style.color = '#14532d'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#ffffff'
+              e.currentTarget.style.color = '#15803d'
+            }}
+          >
+            <span style={{ color: '#15803d', fontWeight: 700, fontSize: '1.125rem' }}>
+              {t('welcome.getStarted')} →
+            </span>
+          </button>
         </div>
       </div>
       <footer className="py-4 text-center text-sm text-farm-200">{t('tagline')}</footer>
