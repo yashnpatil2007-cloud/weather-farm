@@ -257,3 +257,103 @@ export const DEMO_RULES: Rule[] = [
     enabled: true,
   },
 ]
+
+function pastIsoDay(daysAgo: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - daysAgo)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function mondayOfWeek(dateStr: string): string {
+  const d = new Date(`${dateStr}T12:00:00`)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// Deterministic 90-day historical weather series so 7d, 30d, and 3m analytics work in demo mode
+const DEMO_90_DAYS = Array.from({ length: 90 }).map((_, idx) => {
+  const daysAgo = 89 - idx
+  const date = pastIsoDay(daysAgo)
+  const seasonal = 23 + 4.5 * Math.sin((idx / 90) * Math.PI)
+  const wave = Math.sin(idx * 0.7) * 2.1 + Math.cos(idx * 0.35) * 1.4
+  const avg_temp = Math.round((seasonal + wave) * 10) / 10
+  const avg_humidity = Math.round(Math.min(92, Math.max(38, 62 - wave * 4 + Math.sin(idx * 0.4) * 10)) * 10) / 10
+  const wetSpike = idx % 7 === 2 || idx % 11 === 5
+  const avg_rainfall = wetSpike ? Math.round((4.5 + (idx % 5) * 3.2) * 10) / 10 : Math.round(((idx % 3) * 0.4) * 10) / 10
+  const max_rain_prob = wetSpike ? Math.min(95, 65 + (idx % 4) * 7) : 10 + (idx % 5) * 5
+  return { date, avg_temp, avg_humidity, avg_rainfall, max_rain_prob }
+})
+
+export function getDemoWeatherTrends(period: string) {
+  const days = period === '7d' ? 7 : period === '30d' ? 30 : 90
+  const slice = DEMO_90_DAYS.slice(-days)
+  if (period !== '3m') return slice
+
+  // Aggregate into ISO-week buckets just like backend analytics_service._aggregate_weekly
+  const buckets: Array<{ date: string; temps: number[]; hums: number[]; rains: number[]; probs: number[] }> = []
+  for (const row of slice) {
+    const weekStart = mondayOfWeek(row.date)
+    let b = buckets[buckets.length - 1]
+    if (!b || b.date !== weekStart) {
+      b = { date: weekStart, temps: [], hums: [], rains: [], probs: [] }
+      buckets.push(b)
+    }
+    b.temps.push(row.avg_temp)
+    b.hums.push(row.avg_humidity)
+    b.rains.push(row.avg_rainfall)
+    b.probs.push(row.max_rain_prob)
+  }
+  return buckets.map((b) => ({
+    date: b.date,
+    avg_temp: Math.round((b.temps.reduce((s, v) => s + v, 0) / b.temps.length) * 10) / 10,
+    avg_humidity: Math.round((b.hums.reduce((s, v) => s + v, 0) / b.hums.length) * 10) / 10,
+    avg_rainfall: Math.round((b.rains.reduce((s, v) => s + v, 0) / b.rains.length) * 10) / 10,
+    max_rain_prob: Math.max(...b.probs),
+  }))
+}
+
+export function getDemoIrrigationHistory(period: string) {
+  const days = period === '7d' ? 7 : period === '30d' ? 30 : 90
+  const out: Array<{ date: string; irrigations: number }> = []
+  for (let d = days - 1; d >= 0; d -= 4) {
+    out.push({ date: pastIsoDay(d), irrigations: d % 8 === 0 ? 2 : 1 })
+  }
+  return out
+}
+
+const DEMO_HISTORICAL_ALERTS: Array<{ daysAgo: number; severity: 'caution' | 'warning' | 'critical'; count: number }> = [
+  { daysAgo: 2, severity: 'caution', count: 1 },
+  { daysAgo: 5, severity: 'warning', count: 1 },
+  { daysAgo: 12, severity: 'caution', count: 2 },
+  { daysAgo: 19, severity: 'critical', count: 1 },
+  { daysAgo: 26, severity: 'warning', count: 1 },
+  { daysAgo: 38, severity: 'caution', count: 2 },
+  { daysAgo: 51, severity: 'warning', count: 1 },
+  { daysAgo: 64, severity: 'critical', count: 1 },
+  { daysAgo: 78, severity: 'caution', count: 1 },
+]
+
+export function getDemoAlertHistory(period: string) {
+  const days = period === '7d' ? 7 : period === '30d' ? 30 : 90
+  return DEMO_HISTORICAL_ALERTS
+    .filter((a) => a.daysAgo <= days)
+    .map((a) => ({ date: pastIsoDay(a.daysAgo), severity: a.severity, count: a.count }))
+}
+
+export function getDemoRecommendationsHistory(days?: number): Recommendation[] {
+  const extra: Recommendation[] = [
+    { id: 104, field_id: 1, field_name: 'North Tomato Plot', severity: 'warning', category: 'irrigation', title: 'Postpone irrigation — rain expected', situation: 'Rain probability is 78%.', impact: 'Heavy rainfall is likely within the next 12 hours.', action: 'Postpone irrigation to avoid unnecessary water use and potential waterlogging.', rule_code: 'irr_postpone_rain', factors: { rain_probability: 78 }, created_at: new Date(Date.now() - 4 * 86400000).toISOString() },
+    { id: 105, field_id: 2, field_name: 'East Wheat Parcel', severity: 'warning', category: 'spraying', title: 'Windy — postpone pesticide spraying', situation: 'Wind speed is 28 km/h, above the safe limit for spraying.', impact: 'Spraying in wind drifts onto neighbouring areas and reduces effectiveness.', action: 'Postpone pesticide or foliar spraying until the wind drops below the safe limit.', rule_code: 'pause_spraying', factors: { wind_speed: 28 }, created_at: new Date(Date.now() - 11 * 86400000).toISOString() },
+    { id: 106, field_id: 1, field_name: 'North Tomato Plot', severity: 'critical', category: 'heat_stress', title: 'Heat stress — protect the crop', situation: 'Temperature is 39°C, above the heat-stress threshold for Tomato.', impact: 'High heat can scorch leaves, abort flowers and cut yields.', action: 'Provide shade or mulch, irrigate during the cooler hours, and check for wilting.', rule_code: 'heat_stress_warning', factors: { temperature: 39, crop_name: 'Tomato' }, created_at: new Date(Date.now() - 21 * 86400000).toISOString() },
+    { id: 107, field_id: 1, field_name: 'North Tomato Plot', severity: 'caution', category: 'disease', title: 'High humidity — watch for disease', situation: 'Humidity is 88% — very high for Tomato.', impact: 'Prolonged high humidity favours fungal diseases such as blight and mildew.', action: 'Monitor the crop daily and improve air circulation between rows.', rule_code: 'disease_risk_humidity', factors: { humidity: 88, crop_name: 'Tomato' }, created_at: new Date(Date.now() - 42 * 86400000).toISOString() },
+    { id: 108, field_id: 2, field_name: 'East Wheat Parcel', severity: 'favorable', category: 'general', title: 'Favorable conditions for planned work', situation: 'Current weather is mild and favourable for most farm work.', impact: 'No weather-related risk is currently detected for Wheat.', action: 'Proceed with planned activities as scheduled, but always double-check the sky before you start.', rule_code: 'favorable_conditions', factors: { crop_name: 'Wheat' }, created_at: new Date(Date.now() - 68 * 86400000).toISOString() },
+  ]
+  const all = [...DEMO_RECOMMENDATIONS, ...extra]
+  if (!days) return all
+  const cutoff = Date.now() - days * 86400000
+  return all.filter((r) => new Date(r.created_at).getTime() >= cutoff)
+}

@@ -24,6 +24,10 @@ import {
   DEMO_ALERTS,
   DEMO_ACTIVITIES,
   DEMO_RULES,
+  getDemoWeatherTrends,
+  getDemoIrrigationHistory,
+  getDemoAlertHistory,
+  getDemoRecommendationsHistory,
 } from './mockData'
 
 const TOKEN_KEY = 'weatherfarm_token'
@@ -516,7 +520,9 @@ export const recommendationsApi = {
       return res.data
     } catch (err) {
       if (!shouldUseMockFallback(err)) throw err
-      return DEMO_RECOMMENDATIONS
+      return getDemoRecommendationsHistory(_days)
+        .filter((r) => !_fieldId || r.field_id === _fieldId)
+        .slice(0, _limit)
     }
   },
 }
@@ -652,11 +658,12 @@ export const analyticsApi = {
       return res.data
     } catch (err) {
       if (!shouldUseMockFallback(err)) throw err
+      const days = period === '7d' ? 7 : period === '30d' ? 30 : 90
       return {
-        recommendations_generated: DEMO_RECOMMENDATIONS.length,
-        alerts_received: DEMO_ALERTS.length,
-        unread_alerts: DEMO_ALERTS.filter((a) => !a.is_read).length,
-        activities_recorded: DEMO_ACTIVITIES.length,
+        recommendations_generated: getDemoRecommendationsHistory(days).length,
+        alerts_received: getDemoAlertHistory(period).reduce((s, a) => s + a.count, 0),
+        unread_alerts: getSavedAlerts().filter((a) => !a.is_read).length,
+        activities_recorded: getSavedActivities().length,
       }
     }
   },
@@ -666,13 +673,7 @@ export const analyticsApi = {
       return res.data
     } catch (err) {
       if (!shouldUseMockFallback(err)) throw err
-      return DEMO_WEATHER.daily.map((d) => ({
-        date: d.date,
-        avg_temp: Math.round(((d.temp_max + d.temp_min) / 2) * 10) / 10,
-        avg_humidity: 58,
-        avg_rainfall: d.precipitation,
-        max_rain_prob: d.rain_probability,
-      }))
+      return getDemoWeatherTrends(period)
     }
   },
   irrigation: async (period = '30d') => {
@@ -681,11 +682,7 @@ export const analyticsApi = {
       return res.data
     } catch (err) {
       if (!shouldUseMockFallback(err)) throw err
-      return [
-        { date: '2026-11-12', irrigations: 1 },
-        { date: '2026-11-14', irrigations: 2 },
-        { date: '2026-11-16', irrigations: 1 },
-      ]
+      return getDemoIrrigationHistory(period)
     }
   },
   alerts: async (period = '30d') => {
@@ -694,11 +691,7 @@ export const analyticsApi = {
       return res.data
     } catch (err) {
       if (!shouldUseMockFallback(err)) throw err
-      return DEMO_ALERTS.map((a) => ({
-        date: a.created_at.slice(0, 10),
-        severity: a.severity,
-        count: 1,
-      }))
+      return getDemoAlertHistory(period)
     }
   },
 }
