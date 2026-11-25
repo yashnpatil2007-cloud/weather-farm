@@ -79,7 +79,7 @@ export default function MapPicker({ lat, lon, onChange, height = 300, interactiv
     <div
       ref={containerRef}
       style={{ height }}
-      className="w-full rounded-xl overflow-hidden border-2 border-gray-200"
+      className="relative z-0 isolate w-full rounded-xl overflow-hidden border-2 border-slate-200"
       role="application"
       aria-label={t('onboarding.farmLocation')}
     />
