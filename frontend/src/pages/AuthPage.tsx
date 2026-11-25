@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import Button from '../components/Button'
 import { getErrorMessage } from '../api'
 import Spinner from '../components/Spinner'
+import { BrandLogo } from '../components/Icons'
 
 type Mode = 'login' | 'register'
 
@@ -37,16 +38,35 @@ export default function AuthPage() {
     }
     setLoading(true)
     try {
+      let loggedInUser
       if (mode === 'login') {
-        await login(email, password)
+        loggedInUser = await login(email, password)
       } else {
-        await register({ full_name: fullName, email, password, phone: phone || undefined, location: userLocation || undefined })
+        loggedInUser = await register({ full_name: fullName, email, password, phone: phone || undefined, location: userLocation || undefined })
       }
-      navigate(from, { replace: true })
+      const target = from === '/' && loggedInUser.role === 'admin' ? '/admin' : from
+      navigate(target, { replace: true })
     } catch (err) {
       const isDuplicate = getErrorMessage(err, '')?.toLowerCase().includes('already')
       if (isDuplicate) setError(t('auth.alreadyRegistered'))
       else setError(getErrorMessage(err, t('errors.server')))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const quickDemoLogin = async (demoEmail: string, demoPass: string) => {
+    setMode('login')
+    setEmail(demoEmail)
+    setPassword(demoPass)
+    setError('')
+    setLoading(true)
+    try {
+      const u = await login(demoEmail, demoPass)
+      const target = from === '/' && u.role === 'admin' ? '/admin' : from
+      navigate(target, { replace: true })
+    } catch (err) {
+      setError(getErrorMessage(err, t('errors.server')))
     } finally {
       setLoading(false)
     }
@@ -59,50 +79,29 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-farm-600 to-farm-800 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-950 via-emerald-900 to-green-950 text-white flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-10">
-        <div className="text-5xl mb-3" aria-hidden="true">🌾</div>
-        <h1 className="text-2xl font-bold">
+        <BrandLogo className="h-12 w-12 mb-3" />
+        <h1 className="font-display text-2xl md:text-3xl font-extrabold">
           {mode === 'login' ? t('auth.welcomeBack') : t('auth.createAccountTitle')}
         </h1>
-        <p className="text-farm-100 text-sm mt-1">{t('tagline')}</p>
+        <p className="text-emerald-200/80 text-sm mt-1 text-center">{t('tagline')}</p>
 
-        <form onSubmit={submit} className="mt-8 w-full max-w-md bg-white text-gray-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <form onSubmit={submit} className="mt-7 w-full max-w-md bg-white text-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="fullName">
-                {t('auth.fullName')}
-              </label>
-              <input
-                id="fullName"
-                className="input"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-                minLength={2}
-              />
+              <label className="label" htmlFor="fullName">{t('auth.fullName')}</label>
+              <input id="fullName" className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} required minLength={2} />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="email">
-              {t('auth.email')}
-            </label>
-            <input
-              id="email"
-              type="email"
-              className="input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
+            <label className="label" htmlFor="email">{t('auth.email')}</label>
+            <input id="email" type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="password">
-              {t('auth.password')}
-            </label>
+            <label className="label" htmlFor="password">{t('auth.password')}</label>
             <input
               id="password"
               type="password"
@@ -118,27 +117,18 @@ export default function AuthPage() {
           {mode === 'register' && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="phone">
-                  {t('auth.phone')}
-                </label>
+                <label className="label" htmlFor="phone">{t('auth.phone')}</label>
                 <input id="phone" className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="userLocation">
-                  {t('auth.location')}
-                </label>
-                <input
-                  id="userLocation"
-                  className="input"
-                  value={userLocation}
-                  onChange={(e) => setUserLocation(e.target.value)}
-                />
+                <label className="label" htmlFor="userLocation">{t('auth.location')}</label>
+                <input id="userLocation" className="input" value={userLocation} onChange={(e) => setUserLocation(e.target.value)} />
               </div>
             </>
           )}
 
           {error && (
-            <div role="alert" aria-live="assertive" className="bg-red-50 text-red-700 border border-red-200 rounded-lg px-4 py-3 text-sm">
+            <div role="alert" aria-live="assertive" className="bg-rose-50 text-rose-700 border border-rose-200 rounded-xl px-4 py-3 text-sm font-medium">
               {error}
             </div>
           )}
@@ -146,16 +136,42 @@ export default function AuthPage() {
           <Button type="submit" size="lg" className="w-full" disabled={loading}>
             {loading ? <Spinner size="sm" /> : mode === 'login' ? t('auth.loginSubmit') : t('auth.registerSubmit')}
           </Button>
+
+          {mode === 'login' && (
+            <div className="pt-3 border-t border-slate-100">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center mb-2">
+                Quick Demo Access
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => quickDemoLogin('demo@farm.com', 'demo123')}
+                  className="rounded-xl border border-slate-200 bg-slate-50 hover:bg-farm-50 hover:border-farm-300 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors"
+                >
+                  Farmer Demo
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => quickDemoLogin('admin@farm.com', 'admin123')}
+                  className="rounded-xl border border-slate-200 bg-slate-50 hover:bg-farm-50 hover:border-farm-300 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors"
+                >
+                  Admin Demo
+                </button>
+              </div>
+            </div>
+          )}
         </form>
 
-        <p className="mt-4 text-farm-100 text-sm">
+        <p className="mt-4 text-emerald-100 text-sm">
           {mode === 'login' ? t('auth.noAccount') : t('auth.haveAccount')}{' '}
-          <button onClick={(e) => switchMode(mode === 'login' ? 'register' : 'login', e)} className="underline font-semibold">
+          <button onClick={(e) => switchMode(mode === 'login' ? 'register' : 'login', e)} className="underline font-bold">
             {mode === 'login' ? t('auth.registerLink') : t('auth.loginLink')}
           </button>
         </p>
 
-        <p className="mt-6 text-xs text-farm-200 text-center max-w-md">{t('auth.demoHint')}</p>
+        <p className="mt-5 text-xs text-emerald-200/75 text-center max-w-md">{t('auth.demoHint')}</p>
       </div>
     </div>
   )

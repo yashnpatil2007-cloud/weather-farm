@@ -20,6 +20,13 @@ export const SEVERITY_COLORS: Record<Severity, string> = {
   critical: '#dc2626',
 }
 
+function yAxisWidthForUnit(unit: string): number {
+  if (!unit) return 40
+  if (unit.length >= 4) return 60
+  if (unit.length >= 2) return 50
+  return 44
+}
+
 export function WeatherLineChart({
   data,
   xKey,
@@ -35,10 +42,10 @@ export function WeatherLineChart({
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+      <LineChart data={data} margin={{ top: 5, right: 12, left: 4, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
         <XAxis dataKey={xKey} tick={{ fontSize: 12 }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} unit={yUnit} width={40} />
+        <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} unit={yUnit} width={yAxisWidthForUnit(yUnit)} />
         <Tooltip contentStyle={tooltipStyle} />
         {lines.map((l) => (
           <Line
@@ -71,7 +78,7 @@ export function WeatherAreaChart({
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+      <AreaChart data={data} margin={{ top: 5, right: 12, left: 4, bottom: 5 }}>
         <defs>
           {series.map((s) => (
             <linearGradient key={s.key} id={`grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -82,7 +89,7 @@ export function WeatherAreaChart({
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
         <XAxis dataKey={xKey} tick={{ fontSize: 12 }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} unit={yUnit} width={40} />
+        <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} unit={yUnit} width={yAxisWidthForUnit(yUnit)} />
         <Tooltip contentStyle={tooltipStyle} />
         {series.map((s) => (
           <Area
@@ -115,10 +122,10 @@ export function WeatherBarChart({
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+      <BarChart data={data} margin={{ top: 5, right: 12, left: 4, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
         <XAxis dataKey={xKey} tick={{ fontSize: 12 }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} unit={yUnit} width={40} />
+        <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} unit={yUnit} width={yAxisWidthForUnit(yUnit)} />
         <Tooltip contentStyle={tooltipStyle} />
         {bars.map((b) => (
           <Bar key={b.key} dataKey={b.key} fill={b.fill} name={b.name} />

@@ -108,6 +108,13 @@ def _build_outcome(rule: RecommendationRule, factors: dict) -> dict:
     }
 
 
+def _severity_rank(severity: str) -> int:
+    try:
+        return SEVERITY_ORDER.index(severity)
+    except ValueError:
+        return 0
+
+
 def evaluate_snapshot(
     snapshot: dict,
     crop_thresholds: dict | None = None,
@@ -132,10 +139,13 @@ def evaluate_snapshot(
         "crop_name": crop_thresholds.get("crop_name", "the crop"),
     }
 
+    active_crop = (crop_thresholds.get("crop_name") or "").strip().lower()
     matched: list[dict] = []
     default_matches: list[dict] = []
     for rule in rules or []:
         if not rule.enabled:
+            continue
+        if rule.crop_name and rule.crop_name.strip().lower() != active_crop:
             continue
         hit = all(_eval_condition(c, factors, crop_thresholds) for c in (rule.conditions or []))
         if hit:
@@ -153,10 +163,10 @@ def evaluate_snapshot(
     merged: dict[str, dict] = {}
     for m in matched:
         prev = merged.get(m["category"])
-        if prev is None or SEVERITY_ORDER.index(m["severity"]) > SEVERITY_ORDER.index(prev["severity"]):
+        if prev is None or _severity_rank(m["severity"]) > _severity_rank(prev["severity"]):
             merged[m["category"]] = m
 
-    results = sorted(merged.values(), key=lambda r: SEVERITY_ORDER.index(r["severity"]), reverse=True)
+    results = sorted(merged.values(), key=lambda r: _severity_rank(r["severity"]), reverse=True)
     return results
 
 

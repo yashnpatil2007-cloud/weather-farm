@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { farmsApi } from '../api'
+import { useAuth } from './AuthContext'
 import type { Farm, Field } from '../types'
 
 interface StoreContextType {
@@ -22,12 +23,14 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth()
   const [farms, setFarms] = useState<Farm[]>([])
   const [selectedFarmId, setSelectedFarmId] = useState<number | null>(null)
   const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   const refreshFarms = async () => {
+    setLoading(true)
     try {
       const data = await farmsApi.list()
       setFarms(data)
@@ -39,8 +42,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    if (authLoading) return
+    setSelectedFarmId(null)
+    setSelectedFieldId(null)
+    if (!user) {
+      setFarms([])
+      setLoading(false)
+      return
+    }
     refreshFarms()
-  }, [])
+  }, [user?.id, authLoading])
 
   const selectedFarm = farms.find((f) => f.id === selectedFarmId) || farms[0] || null
   const activeField =

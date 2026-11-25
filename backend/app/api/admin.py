@@ -44,10 +44,20 @@ def list_users(db: Session = Depends(get_db)):
 
 
 @router.patch("/users/{user_id}", response_model=dict)
-def update_user(user_id: int, payload: dict, db: Session = Depends(get_db)):
+def update_user(
+    user_id: int,
+    payload: dict,
+    current_admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found.")
+    if user.id == current_admin.id:
+        if payload.get("is_active") is False:
+            raise HTTPException(status_code=400, detail="Cannot deactivate your own account.")
+        if payload.get("role") == "farmer":
+            raise HTTPException(status_code=400, detail="Cannot remove your own admin role.")
     if "is_active" in payload and isinstance(payload["is_active"], bool):
         user.is_active = payload["is_active"]
     if "role" in payload and payload["role"] in ("farmer", "admin"):

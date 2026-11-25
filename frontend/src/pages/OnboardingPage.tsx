@@ -4,16 +4,17 @@ import { useTranslation } from 'react-i18next'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import { useStore } from '../context/StoreContext'
-import { cropsApi, weatherApi, type GeocodeResult } from '../api'
+import { cropsApi, getErrorMessage, weatherApi, type GeocodeResult } from '../api'
 import type { Crop, CropGrowthStage } from '../types'
 import Spinner from '../components/Spinner'
 
 export default function OnboardingPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { addFarm, addField, refreshFarms } = useStore()
+  const { addFarm, updateFarm, addField, updateField, refreshFarms } = useStore()
   const [step, setStep] = useState(1)
   const totalSteps = 4
+  const [saveError, setSaveError] = useState('')
 
   // Farm fields
   const [farmName, setFarmName] = useState('')
@@ -117,32 +118,39 @@ export default function OnboardingPage() {
     return true
   }
 
+  const farmIdRef = useRef<number | null>(null)
+  const fieldIdRef = useRef<number | null>(null)
+
   const handleNext = async () => {
+    setSaveError('')
     if (step === 1) {
-      // create farm
       setSaving(true)
       try {
-        const farm = await addFarm({
-          name: farmName,
-          location: farmLocation || search || 'My farm',
+        const farmPayload = {
+          name: farmName.trim(),
+          location: (farmLocation || search).trim() || 'My farm',
           lat: lat!,
           lon: lon!,
-        })
-        setFarmIdForStep(farm.id)
+        }
+        if (farmIdRef.current) {
+          await updateFarm(farmIdRef.current, farmPayload)
+        } else {
+          const farm = await addFarm(farmPayload)
+          farmIdRef.current = farm.id
+        }
         setStep(2)
-      } catch {
-        /* keep user on step */
+      } catch (err) {
+        setSaveError(getErrorMessage(err, t('errors.server')))
       } finally {
         setSaving(false)
       }
     } else if (step === 2) {
-      // save field now
       setSaving(true)
       try {
-        await plantField()
-        setStep(3)
-      } catch {
-        /* keep user on step */
+        const saved = await plantField()
+        if (saved) setStep(3)
+      } catch (err) {
+        setSaveError(getErrorMessage(err, t('errors.server')))
       } finally {
         setSaving(false)
       }
@@ -154,28 +162,24 @@ export default function OnboardingPage() {
     }
   }
 
-  // track farm id for field creation
-  const farmIdRef = useRef<number | null>(null)
-  const setFarmIdForStep = (id: number) => {
-    farmIdRef.current = id
-  }
-
   const plantField = async () => {
     if (!farmIdRef.current || cropId === null || stageId === null) return null
-    try {
-      const field = await addField(farmIdRef.current, {
-        name: fieldName || 'Main field',
-        size_hectares: parseFloat(fieldArea) || 1,
-        soil_type: soilType,
-        lat: lat ?? undefined,
-        lon: lon ?? undefined,
-        crop_id: cropId,
-        growth_stage_id: stageId,
-      })
-      return field
-    } catch {
-      return null
+    const parsedArea = parseFloat(fieldArea)
+    const fieldPayload = {
+      name: fieldName.trim() || 'Main field',
+      size_hectares: parsedArea > 0 ? parsedArea : 1,
+      soil_type: soilType,
+      lat: lat ?? undefined,
+      lon: lon ?? undefined,
+      crop_id: cropId,
+      growth_stage_id: stageId,
     }
+    if (fieldIdRef.current) {
+      return await updateField(fieldIdRef.current, fieldPayload)
+    }
+    const field = await addField(farmIdRef.current, fieldPayload)
+    fieldIdRef.current = field.id
+    return field
   }
 
   const cropsFiltered = cropSearch
@@ -371,6 +375,12 @@ export default function OnboardingPage() {
             </div>
           )}
         </Card>
+
+        {saveError && (
+          <div role="alert" aria-live="assertive" className="mt-4 bg-red-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm">
+            {saveError}
+          </div>
+        )}
 
         <div className="flex justify-between mt-6">
           {step > 1 ? (

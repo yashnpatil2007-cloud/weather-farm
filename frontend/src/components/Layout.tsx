@@ -1,29 +1,47 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentType, type SVGProps } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import { useStore } from '../context/StoreContext'
 import { alertsApi } from '../api'
+import {
+  BrandLogo,
+  HomeIcon,
+  SproutIcon,
+  CloudSunIcon,
+  LightbulbIcon,
+  BellIcon,
+  ChartBarIcon,
+  SettingsIcon,
+  ShieldIcon,
+  LogoutIcon,
+  MapPinIcon,
+} from './Icons'
+import { localizeCropName } from '../utils/localizeContent'
 
-const mobileItems = [
-  { to: '/', icon: '🏠', labelKey: 'nav.home' },
-  { to: '/farm', icon: '🌾', labelKey: 'nav.farm' },
-  { to: '/advice', icon: '💡', labelKey: 'nav.advice' },
-  { to: '/alerts', icon: '🔔', labelKey: 'nav.alerts' },
+type IconComp = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>
+
+const mobileItems: { to: string; Icon: IconComp; labelKey: string }[] = [
+  { to: '/', Icon: HomeIcon, labelKey: 'nav.home' },
+  { to: '/farm', Icon: SproutIcon, labelKey: 'nav.farm' },
+  { to: '/advice', Icon: LightbulbIcon, labelKey: 'nav.advice' },
+  { to: '/alerts', Icon: BellIcon, labelKey: 'nav.alerts' },
 ]
 
-const desktopItems = [
-  { to: '/', icon: '🏠', labelKey: 'nav.dashboard' },
-  { to: '/farm', icon: '🌾', labelKey: 'nav.farm' },
-  { to: '/weather', icon: '🌦', labelKey: 'nav.weather' },
-  { to: '/advice', icon: '💡', labelKey: 'nav.advice' },
-  { to: '/alerts', icon: '🔔', labelKey: 'nav.alerts' },
-  { to: '/history', icon: '📊', labelKey: 'nav.history' },
-  { to: '/settings', icon: '⚙️', labelKey: 'nav.settings' },
+const desktopItems: { to: string; Icon: IconComp; labelKey: string }[] = [
+  { to: '/', Icon: HomeIcon, labelKey: 'nav.dashboard' },
+  { to: '/farm', Icon: SproutIcon, labelKey: 'nav.farm' },
+  { to: '/weather', Icon: CloudSunIcon, labelKey: 'nav.weather' },
+  { to: '/advice', Icon: LightbulbIcon, labelKey: 'nav.advice' },
+  { to: '/alerts', Icon: BellIcon, labelKey: 'nav.alerts' },
+  { to: '/history', Icon: ChartBarIcon, labelKey: 'nav.history' },
+  { to: '/settings', Icon: SettingsIcon, labelKey: 'nav.settings' },
 ]
 
 export default function Layout({ isAdmin = false }: { isAdmin?: boolean }) {
   const { t } = useTranslation()
   const { user, logout } = useAuth()
+  const { farms, selectedFarm, selectedField, selectFarm, selectField } = useStore()
   const navigate = useNavigate()
   const location = useLocation()
   const [unread, setUnread] = useState(0)
@@ -41,56 +59,67 @@ export default function Layout({ isAdmin = false }: { isAdmin?: boolean }) {
     load()
   }, [location.pathname])
 
-  const items = isAdmin
-    ? [...desktopItems.slice(0, 5), { to: '/admin', icon: '🛠️', labelKey: 'nav.admin' }, desktopItems[6]]
+  const showAdmin = isAdmin || user?.role === 'admin'
+  const items = showAdmin
+    ? [...desktopItems.slice(0, 6), { to: '/admin', Icon: ShieldIcon, labelKey: 'nav.admin' }, desktopItems[6]]
     : desktopItems
 
   const currentPage = items.find((i) => i.to === location.pathname)
+  const showContextBar = farms.length > 0 && location.pathname !== '/admin'
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex fixed inset-y-0 left-0 w-64 bg-farm-700 text-white flex-col">
-        <div className="flex items-center gap-3 px-5 py-6 min-w-0">
-          <span className="text-3xl shrink-0" aria-hidden="true">🌾</span>
+      <aside className="hidden md:flex fixed inset-y-0 left-0 w-64 bg-gradient-to-b from-emerald-950 via-emerald-900 to-green-950 text-white flex-col overflow-hidden border-r border-emerald-800/60 shadow-xl z-30">
+        <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10 min-w-0">
+          <BrandLogo className="h-10 w-10 shrink-0" />
           <div className="min-w-0">
-            <div className="font-bold leading-tight break-words">{t('appName')}</div>
-            <div className="text-xs text-farm-200 leading-snug break-words">{t('tagline')}</div>
+            <div className="font-display font-bold text-sm leading-tight tracking-tight text-white">AgriPulse</div>
+            <div className="text-[11px] text-emerald-200/80 leading-snug truncate" title={t('appName')}>
+              {t('appName')}
+            </div>
           </div>
         </div>
 
-        <nav className="flex-1 px-3 space-y-1" aria-label={t('nav.menu')}>
-          {items.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium transition-colors ${
-                  isActive ? 'bg-farm-800 text-white' : 'text-farm-100 hover:bg-farm-800/60'
-                }`
-              }
-            >
-              <span className="text-xl" aria-hidden="true">{item.icon}</span>
-              <span>{t(item.labelKey)}</span>
-              {item.to === '/alerts' && unread > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
-                  {unread}
-                </span>
-              )}
-            </NavLink>
-          ))}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label={t('nav.menu')}>
+          {items.map((item) => {
+            const Icon = item.Icon
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === '/'}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-white/15 text-white shadow-sm ring-1 ring-white/15'
+                      : 'text-emerald-100/80 hover:bg-white/10 hover:text-white'
+                  }`
+                }
+              >
+                <Icon size={18} className="shrink-0" />
+                <span className="truncate">{t(item.labelKey)}</span>
+                {item.to === '/alerts' && unread > 0 && (
+                  <span className="ml-auto bg-rose-500 text-white text-[11px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-sm">
+                    {unread}
+                  </span>
+                )}
+              </NavLink>
+            )
+          })}
         </nav>
 
-        <div className="p-4 border-t border-farm-800">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-farm-800 flex items-center justify-center font-bold">
+        <div className="p-4 border-t border-white/10 bg-black/15">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-9 w-9 rounded-full bg-emerald-500/30 ring-1 ring-emerald-400/40 flex items-center justify-center font-bold text-sm shrink-0">
                 {user?.full_name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
-              <div className="leading-tight">
-                <div className="text-sm font-semibold">{user?.full_name}</div>
-                <div className="text-xs text-farm-200 capitalize">{t(user?.role === 'admin' ? 'settings.adminRole' : 'settings.farmerRole')}</div>
+              <div className="leading-tight min-w-0">
+                <div className="text-sm font-semibold truncate">{user?.full_name}</div>
+                <div className="text-[11px] text-emerald-200/80 capitalize">
+                  {t(user?.role === 'admin' ? 'settings.adminRole' : 'settings.farmerRole')}
+                </div>
               </div>
             </div>
             <button
@@ -98,26 +127,26 @@ export default function Layout({ isAdmin = false }: { isAdmin?: boolean }) {
                 logout()
                 navigate('/welcome')
               }}
-              className="text-farm-200 hover:text-white text-xl"
+              className="p-2 rounded-lg text-emerald-200 hover:text-white hover:bg-white/10 transition-colors shrink-0"
               aria-label={t('auth.logout')}
               title={t('auth.logout')}
             >
-              <span aria-hidden="true">⏻</span>
+              <LogoutIcon size={18} />
             </button>
           </div>
         </div>
       </aside>
 
       {/* Mobile header */}
-      <header className="md:hidden sticky top-0 z-30 bg-farm-700 text-white">
+      <header className="md:hidden sticky top-0 z-30 bg-emerald-950 text-white shadow-md">
         <div className="flex items-center justify-between px-4 py-3">
-          <Link to="/" className="flex items-center gap-2 font-bold">
-            <span className="text-2xl" aria-hidden="true">🌾</span>
-            <span className="text-sm truncate max-w-[200px]">{t('appName')}</span>
+          <Link to="/" className="flex items-center gap-2.5 font-bold min-w-0">
+            <BrandLogo className="h-8 w-8 shrink-0" />
+            <span className="text-sm font-display truncate">{t('appName')}</span>
           </Link>
           <button
             onClick={() => setMenuOpen((o) => !o)}
-            className="p-2 text-2xl"
+            className="p-2 text-xl rounded-lg hover:bg-white/10"
             aria-label={t('nav.menu')}
             aria-expanded={menuOpen}
           >
@@ -125,37 +154,40 @@ export default function Layout({ isAdmin = false }: { isAdmin?: boolean }) {
           </button>
         </div>
         {menuOpen && (
-          <nav className="px-3 pb-3 space-y-1" aria-label={t('nav.menu')}>
-            {items.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === '/'}
-                onClick={() => setMenuOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium ${
-                    isActive ? 'bg-farm-800 text-white' : 'text-farm-100'
-                  }`
-                }
-              >
-                <span className="text-xl" aria-hidden="true">{item.icon}</span>
-                <span>{t(item.labelKey)}</span>
-                {item.to === '/alerts' && unread > 0 && (
-                  <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
-                    {unread}
-                  </span>
-                )}
-              </NavLink>
-            ))}
+          <nav className="px-3 pb-3 space-y-1 border-t border-white/10 pt-2" aria-label={t('nav.menu')}>
+            {items.map((item) => {
+              const Icon = item.Icon
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/'}
+                  onClick={() => setMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium ${
+                      isActive ? 'bg-white/15 text-white' : 'text-emerald-100/85'
+                    }`
+                  }
+                >
+                  <Icon size={18} />
+                  <span>{t(item.labelKey)}</span>
+                  {item.to === '/alerts' && unread > 0 && (
+                    <span className="ml-auto bg-rose-500 text-white text-xs font-bold rounded-full h-5 min-w-[20px] px-1.5 flex items-center justify-center">
+                      {unread}
+                    </span>
+                  )}
+                </NavLink>
+              )
+            })}
             <button
               onClick={() => {
                 setMenuOpen(false)
                 logout()
                 navigate('/welcome')
               }}
-              className="flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium text-farm-100 w-full text-left"
+              className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-emerald-100/85 w-full text-left"
             >
-              <span className="text-xl" aria-hidden="true">⏻</span>
+              <LogoutIcon size={18} />
               <span>{t('auth.logout')}</span>
             </button>
           </nav>
@@ -163,43 +195,123 @@ export default function Layout({ isAdmin = false }: { isAdmin?: boolean }) {
       </header>
 
       {/* Main content */}
-      <main className="md:pl-64 pb-20 md:pb-8 min-w-0">
-        <div className="max-w-5xl mx-auto w-full px-4 md:px-8 min-w-0 overflow-x-hidden">
-          <div className="md:hidden pt-2 pb-2 text-sm text-gray-600">
-            {currentPage ? `${t('nav.home')} › ${t(currentPage.labelKey)}` : ''}
+      <main className="md:pl-64 pb-24 md:pb-10 min-w-0">
+        {/* Global Top Context Bar (Farm + Field Switcher) */}
+        <div className="sticky top-0 z-20 hidden md:block bg-white/85 backdrop-blur-md border-b border-slate-200/80">
+          <div className="max-w-6xl mx-auto px-8 h-14 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
+              <span>{currentPage ? t(currentPage.labelKey) : t('appName')}</span>
+              {selectedFarm && showContextBar && (
+                <>
+                  <span className="text-slate-300">/</span>
+                  <span className="inline-flex items-center gap-1 text-slate-700">
+                    <MapPinIcon size={14} className="text-farm-600" />
+                    {selectedFarm.location}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {showContextBar && (
+              <div className="flex items-center gap-2.5">
+                <label className="sr-only" htmlFor="topbar-farm">{t('farm.farm')}</label>
+                <select
+                  id="topbar-farm"
+                  value={selectedFarm?.id ?? ''}
+                  onChange={(e) => selectFarm(Number(e.target.value))}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 focus:border-farm-500 focus:outline-none"
+                >
+                  {farms.map((f) => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+
+                {(selectedFarm?.fields?.length ?? 0) > 0 && (
+                  <>
+                    <label className="sr-only" htmlFor="topbar-field">{t('farm.fields')}</label>
+                    <select
+                      id="topbar-field"
+                      value={selectedField?.id ?? ''}
+                      onChange={(e) => selectField(Number(e.target.value))}
+                      className="rounded-lg border border-farm-200 bg-farm-50 px-3 py-1.5 text-xs font-semibold text-farm-800 focus:border-farm-500 focus:outline-none"
+                    >
+                      {selectedFarm?.fields.map((fl) => (
+                        <option key={fl.id} value={fl.id}>
+                          {fl.name}{fl.crop ? ` · ${localizeCropName(fl.crop.name, t)}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* Mobile Farm/Field Quick Switcher */}
+        {showContextBar && (
+          <div className="md:hidden bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-2">
+            <select
+              aria-label={t('farm.farm')}
+              value={selectedFarm?.id ?? ''}
+              onChange={(e) => selectFarm(Number(e.target.value))}
+              className="flex-1 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700"
+            >
+              {farms.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+            {(selectedFarm?.fields?.length ?? 0) > 0 && (
+              <select
+                aria-label={t('farm.fields')}
+                value={selectedField?.id ?? ''}
+                onChange={(e) => selectField(Number(e.target.value))}
+                className="flex-1 min-w-0 rounded-lg border border-farm-200 bg-farm-50 px-2.5 py-1.5 text-xs font-semibold text-farm-800"
+              >
+                {selectedFarm?.fields.map((fl) => (
+                  <option key={fl.id} value={fl.id}>{fl.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        <div className="max-w-6xl mx-auto w-full px-4 md:px-8 pt-5 md:pt-7 min-w-0">
           <Outlet />
         </div>
       </main>
 
       {/* Mobile bottom nav */}
       <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200"
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200"
         aria-label={t('nav.menu')}
       >
         <div className="grid grid-cols-4">
-          {mobileItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) =>
-                `flex flex-col items-center justify-center py-2 text-[11px] font-medium ${
-                  isActive ? 'text-farm-700' : 'text-gray-500'
-                }`
-              }
-            >
-              <span className="text-2xl relative" aria-hidden="true">
-                {item.icon}
-                {item.to === '/alerts' && unread > 0 && (
-                  <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
-                    {unread}
-                  </span>
-                )}
-              </span>
-              {t(item.labelKey)}
-            </NavLink>
-          ))}
+          {mobileItems.map((item) => {
+            const Icon = item.Icon
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === '/'}
+                className={({ isActive }) =>
+                  `flex flex-col items-center justify-center py-2 text-[11px] font-semibold transition-colors ${
+                    isActive ? 'text-farm-700' : 'text-slate-500'
+                  }`
+                }
+              >
+                <span className="relative mb-0.5">
+                  <Icon size={20} />
+                  {item.to === '/alerts' && unread > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 bg-rose-500 text-white text-[10px] font-bold rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center">
+                      {unread}
+                    </span>
+                  )}
+                </span>
+                {t(item.labelKey)}
+              </NavLink>
+            )
+          })}
         </div>
       </nav>
     </div>

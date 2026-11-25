@@ -43,34 +43,35 @@ def _aggregate_weekly(daily: list[dict]) -> list[dict]:
                 "_key": key,
                 "date": (day - timedelta(days=day.weekday())).isoformat(),
                 "_temp": 0.0,
+                "_temp_n": 0,
                 "_humidity": 0.0,
+                "_humidity_n": 0,
                 "_rain": 0.0,
+                "_rain_n": 0,
                 "_rain_prob": None,
-                "_count": 0,
             }
             weeks.append(bucket)
-        for metric, key_name in (
-            ("avg_temp", "_temp"),
-            ("avg_humidity", "_humidity"),
-            ("avg_rainfall", "_rain"),
+        for metric, key_name, count_name in (
+            ("avg_temp", "_temp", "_temp_n"),
+            ("avg_humidity", "_humidity", "_humidity_n"),
+            ("avg_rainfall", "_rain", "_rain_n"),
         ):
             if rec.get(metric) is not None:
                 bucket[key_name] += float(rec[metric])
+                bucket[count_name] += 1
         prob = rec.get("max_rain_prob")
         if prob is not None:
             bucket["_rain_prob"] = max(bucket["_rain_prob"] or 0, float(prob))
-        bucket["_count"] += 1
 
     out = []
     for w in weeks:
-        count = w["_count"] or 1
         out.append(
             {
                 "date": w["date"],
-                "avg_temp": round(w["_temp"] / count, 1),
-                "avg_humidity": round(w["_humidity"] / count, 1),
-                "avg_rainfall": round(w["_rain"] / count, 1),
-                "max_rain_prob": round(w["_rain_prob"] or 0) if w["_rain_prob"] is not None else None,
+                "avg_temp": round(w["_temp"] / w["_temp_n"], 1) if w["_temp_n"] else None,
+                "avg_humidity": round(w["_humidity"] / w["_humidity_n"], 1) if w["_humidity_n"] else None,
+                "avg_rainfall": round(w["_rain"] / w["_rain_n"], 1) if w["_rain_n"] else 0.0,
+                "max_rain_prob": round(w["_rain_prob"]) if w["_rain_prob"] is not None else None,
             }
         )
     return out
@@ -94,10 +95,10 @@ def weather_trends(db: Session, user_id: int, period: str) -> list[dict]:
     daily = [
         {
             "date": r.day,
-            "avg_temp": round(r.temp, 1) if r.temp else None,
-            "avg_humidity": round(r.humidity, 1) if r.humidity else None,
-            "avg_rainfall": round(r.rain or 0.0, 1),
-            "max_rain_prob": round(r.rain_prob or 0) if r.rain_prob else None,
+            "avg_temp": round(r.temp, 1) if r.temp is not None else None,
+            "avg_humidity": round(r.humidity, 1) if r.humidity is not None else None,
+            "avg_rainfall": round(r.rain if r.rain is not None else 0.0, 1),
+            "max_rain_prob": round(r.rain_prob) if r.rain_prob is not None else None,
         }
         for r in rows
     ]
@@ -110,7 +111,7 @@ def activity_frequency(db: Session, user_id: int, period: str) -> list[dict]:
     since = datetime.utcnow() - timedelta(days=_days_back(period))
     rows = (
         db.query(FarmingActivity.activity_type, func.count(FarmingActivity.id).label("total"))
-        .filter(FarmingActivity.user_id == user_id, FarmingActivity.created_at >= since)
+        .filter(FarmingActivity.user_id == user_id, FarmingActivity.activity_date >= since.date())
         .group_by(FarmingActivity.activity_type)
         .all()
     )

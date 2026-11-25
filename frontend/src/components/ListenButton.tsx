@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import type { LanguageCode } from '../i18n'
 import { speakText, stopSpeaking, isSpeakingSupported } from '../utils/tts'
 
 interface ListenButtonProps {
@@ -12,21 +13,22 @@ interface ListenButtonProps {
 }
 
 export default function ListenButton({ text, label, variant = 'secondary', className = '', autoFocusOnLoad = false }: ListenButtonProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { language } = useAuth()
   const [speaking, setSpeaking] = useState(false)
   const autoplayRef = useRef(false)
 
+  const activeLang = ((i18n.language as LanguageCode) || language || 'en')
+
   const doSpeak = () => {
-    if (!isSpeakingSupported()) return Promise.resolve()
+    if (!isSpeakingSupported()) return
     setSpeaking(true)
-    speakText(text, language, {
+    speakText(text, activeLang, {
       onEnd: () => setSpeaking(false),
       onError: () => setSpeaking(false),
     })
   }
 
-  // Optional autoplay for critical alerts on mount (respects a user toggle).
   const handleClick = () => {
     if (speaking) {
       stopSpeaking()
@@ -46,7 +48,7 @@ export default function ListenButton({ text, label, variant = 'secondary', class
         variant === 'primary'
           ? 'bg-farm-600 text-white hover:bg-farm-700 focus:ring-farm-500'
           : variant === 'ghost'
-            ? 'bg-transparent text-gray-600 hover:bg-gray-100 focus:ring-gray-400'
+            ? 'bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-slate-400'
             : 'bg-farm-100 text-farm-700 border-2 border-farm-300 hover:bg-farm-200 focus:ring-farm-500'
       } ${className}`}
     >

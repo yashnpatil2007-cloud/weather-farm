@@ -29,9 +29,9 @@ class FieldCreate(BaseModel):
 
 
 class FieldUpdate(BaseModel):
-    name: str | None = Field(default=None, max_length=120)
+    name: str | None = Field(default=None, min_length=1, max_length=120)
     size_hectares: float | None = Field(default=None, gt=0, le=100000)
-    soil_type: str | None = Field(default=None, max_length=60)
+    soil_type: str | None = Field(default=None, min_length=1, max_length=60)
     lat: float | None = Field(default=None, ge=-90, le=90)
     lon: float | None = Field(default=None, ge=-180, le=180)
     crop_id: int | None = None
@@ -60,7 +60,7 @@ class FarmCreate(BaseModel):
 
 
 class FarmUpdate(BaseModel):
-    name: str | None = Field(default=None, max_length=120)
-    location: str | None = Field(default=None, max_length=255)
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    location: str | None = Field(default=None, min_length=1, max_length=255)
     lat: float | None = Field(default=None, ge=-90, le=90)
     lon: float | None = Field(default=None, ge=-180, le=180)

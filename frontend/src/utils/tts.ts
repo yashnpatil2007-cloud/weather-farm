@@ -1,42 +1,46 @@
 import { TTS_LANG_MAP, type LanguageCode } from '../i18n'
 
-let voiceCache: { lang: LanguageCode; voice: SpeechSynthesisVoice | null } | null = null
+function findVoiceForLocale(voices: SpeechSynthesisVoice[], code: string, nameHint: string): SpeechSynthesisVoice | null {
+  const lower = code.toLowerCase()
+  const prefix = lower.split('-')[0]
+  return (
+    voices.find((v) => v.lang?.toLowerCase() === lower) ||
+    voices.find((v) => v.lang?.toLowerCase().startsWith(`${prefix}-`) || v.lang?.toLowerCase() === prefix) ||
+    voices.find((v) => v.name?.toLowerCase().includes(nameHint)) ||
+    null
+  )
+}
 
 function pickVoice(lang: LanguageCode): SpeechSynthesisVoice | null {
   const synth = window.speechSynthesis
   if (!synth) return null
   const voices = synth.getVoices() || []
   if (!voices.length) return null
-  const locale = TTS_LANG_MAP[lang] || 'en-IN'
-  const lower = locale.toLowerCase()
-  const exact = voices.find((v) => v.lang?.toLowerCase() === lower)
-  if (exact) return exact
-  const prefix = lower.split('-')[0]
-  return voices.find((v) => v.lang?.toLowerCase().startsWith(`${prefix}-`)) || null
-}
 
-function refreshVoiceCache(lang: LanguageCode): SpeechSynthesisVoice | null {
-  if (voiceCache && voiceCache.lang === lang && voiceCache.voice !== null) {
-    return voiceCache.voice
+  if (lang === 'mr') {
+    // Prefer native Marathi voice; fall back to Hindi Devanagari voice if OS lacks mr-IN
+    // so Devanagari script is still pronounced instead of falling back to an English voice.
+    return (
+      findVoiceForLocale(voices, 'mr-IN', 'marathi') ||
+      findVoiceForLocale(voices, 'hi-IN', 'hindi') ||
+      null
+    )
   }
-  const voice = pickVoice(lang)
-  voiceCache = { lang, voice }
-  return voice
+
+  if (lang === 'hi') {
+    return findVoiceForLocale(voices, 'hi-IN', 'hindi') || null
+  }
+
+  return (
+    findVoiceForLocale(voices, 'en-IN', 'india') ||
+    findVoiceForLocale(voices, 'en-US', 'english') ||
+    voices.find((v) => v.lang?.toLowerCase().startsWith('en')) ||
+    null
+  )
 }
 
-// Browsers load the voice list asynchronously. Never keep a permanent null
-// result in the cache, and re-evaluate when the voice list finally arrives so
-// the spoken language always follows the currently selected application language.
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   const synth = window.speechSynthesis
-  if (typeof synth.addEventListener === 'function') {
-    synth.addEventListener('voiceschanged', () => {
-      if (voiceCache) {
-        voiceCache.voice = pickVoice(voiceCache.lang)
-      }
-    })
-  }
-  // Kick off asynchronous voice loading in browsers that require a call first.
   synth.getVoices()
 }
 
@@ -47,22 +51,31 @@ export interface SpeakOptions {
 }
 
 export function speakText(text: string, language: LanguageCode, options: SpeakOptions = {}) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text.trim()) {
     options.onError?.()
     return
   }
-  window.speechSynthesis.cancel()
+  const synth = window.speechSynthesis
+  synth.cancel()
+
   const utterance = new SpeechSynthesisUtterance(text)
-  const lang = TTS_LANG_MAP[language] || 'en-IN'
-  utterance.lang = lang
-  const voice = refreshVoiceCache(language)
-  if (voice && voice.lang && voice.lang.toLowerCase().startsWith(lang.toLowerCase().split('-')[0])) {
+  const targetLang = TTS_LANG_MAP[language] || 'en-IN'
+  const voice = pickVoice(language)
+
+  if (voice) {
     utterance.voice = voice
+    utterance.lang = voice.lang || targetLang
+  } else {
+    utterance.lang = targetLang
   }
-  utterance.rate = options.rate ?? 1
+
+  utterance.rate = options.rate ?? (language === 'en' ? 1 : 0.95)
   utterance.onend = () => options.onEnd?.()
   utterance.onerror = () => options.onError?.()
-  window.speechSynthesis.speak(utterance)
+  synth.speak(utterance)
+  if (synth.paused) {
+    synth.resume()
+  }
 }
 
 export function stopSpeaking() {

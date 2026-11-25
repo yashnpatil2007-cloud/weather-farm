@@ -105,6 +105,21 @@ export const DEMO_FARMS: Farm[] = [
   },
 ]
 
+function isoHour(offsetHours: number): string {
+  const d = new Date()
+  d.setMinutes(0, 0, 0)
+  d.setHours(d.getHours() + offsetHours)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`
+}
+
+function isoDay(offsetDays: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + offsetDays)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 export const DEMO_WEATHER: WeatherSnapshot = {
   lat: 18.6714,
   lon: 73.889,
@@ -123,7 +138,7 @@ export const DEMO_WEATHER: WeatherSnapshot = {
     weather_code: 2,
   },
   hourly: Array.from({ length: 24 }).map((_, i) => ({
-    time: `${String(i).padStart(2, '0')}:00`,
+    time: isoHour(i),
     temperature: Math.round(22 + 8 * Math.sin((i / 24) * Math.PI)),
     humidity: Math.round(60 - 20 * Math.sin((i / 24) * Math.PI)),
     rain_probability: i >= 14 && i <= 17 ? 25 : 10,
@@ -131,11 +146,11 @@ export const DEMO_WEATHER: WeatherSnapshot = {
     wind_speed: 10 + (i % 5),
   })),
   daily: [
-    { date: '2026-11-16', weather_condition: 'Sunny', weather_code: 1, temp_max: 30, temp_min: 19, rain_probability: 10, precipitation: 0, wind_speed: 12 },
-    { date: '2026-11-17', weather_condition: 'Partly Cloudy', weather_code: 2, temp_max: 29, temp_min: 18, rain_probability: 15, precipitation: 0, wind_speed: 11 },
-    { date: '2026-11-18', weather_condition: 'Light Rain', weather_code: 61, temp_max: 27, temp_min: 19, rain_probability: 65, precipitation: 4.2, wind_speed: 16 },
-    { date: '2026-11-19', weather_condition: 'Overcast', weather_code: 3, temp_max: 28, temp_min: 18, rain_probability: 30, precipitation: 0.5, wind_speed: 14 },
-    { date: '2026-11-20', weather_condition: 'Clear Sky', weather_code: 0, temp_max: 31, temp_min: 17, rain_probability: 5, precipitation: 0, wind_speed: 10 },
+    { date: isoDay(0), weather_condition: 'Sunny', weather_code: 1, temp_max: 30, temp_min: 19, rain_probability: 10, precipitation: 0, wind_speed: 12 },
+    { date: isoDay(1), weather_condition: 'Partly Cloudy', weather_code: 2, temp_max: 29, temp_min: 18, rain_probability: 15, precipitation: 0, wind_speed: 11 },
+    { date: isoDay(2), weather_condition: 'Light Rain', weather_code: 61, temp_max: 27, temp_min: 19, rain_probability: 65, precipitation: 4.2, wind_speed: 16 },
+    { date: isoDay(3), weather_condition: 'Overcast', weather_code: 3, temp_max: 28, temp_min: 18, rain_probability: 30, precipitation: 0.5, wind_speed: 14 },
+    { date: isoDay(4), weather_condition: 'Clear Sky', weather_code: 0, temp_max: 31, temp_min: 17, rain_probability: 5, precipitation: 0, wind_speed: 10 },
   ],
 }
 
@@ -238,7 +253,7 @@ export const DEMO_RULES: Rule[] = [
     impact: 'Heavy rainfall is likely within the next 12 hours.',
     action: 'Postpone irrigation to avoid unnecessary water use.',
     is_alert: true,
-    is_default: true,
+    is_default: false,
     enabled: true,
   },
 ]

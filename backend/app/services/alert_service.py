@@ -23,7 +23,7 @@ def create_alerts(db: Session, user_id: int, field: Field | None, outcomes: list
     for outcome in outcomes:
         if not outcome.get("is_alert") or outcome["severity"] not in ("warning", "critical"):
             continue
-        condition = outcome.get("situation") or outcome.get("title") or "Weather event"
+        condition = (outcome.get("situation") or outcome.get("title") or "Weather event")[:120]
         dup = (
             db.query(Alert)
             .filter(

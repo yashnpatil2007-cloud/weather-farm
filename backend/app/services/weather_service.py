@@ -97,7 +97,12 @@ async def fetch_snapshot(lat: float, lon: float, location_label: str) -> dict:
     settings = get_settings()
     hit = _cache.get(key)
     if hit and time.time() - hit["fetched"] < settings.weather_cache_seconds:
-        return hit["data"]
+        return {**hit["data"], "location_label": location_label or hit["data"]["location_label"]}
+
+    if settings.weather_provider == "none":
+        snapshot = _build_mock(lat, lon, location_label)
+        _cache[key] = {"fetched": time.time(), "data": snapshot}
+        return snapshot
 
     try:
         data = await _fetch_open_meteo(lat, lon)
@@ -132,7 +137,6 @@ def _build_snapshot(lat: float, lon: float, label: str, data: dict, source: str)
     cur = data.get("current", {})
     hourly = data.get("hourly", {})
     daily = data.get("daily", {})
-    now = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
 
     times = hourly.get("time", [])
     temps = hourly.get("temperature_2m", [])
@@ -141,8 +145,18 @@ def _build_snapshot(lat: float, lon: float, label: str, data: dict, source: str)
     precip = hourly.get("precipitation", [])
     winds = hourly.get("wind_speed_10m", [])
 
+    # Open-Meteo hourly series begins at 00:00 of the first forecast day; start from current hour.
+    cur_time = cur.get("time")
+    start_idx = 0
+    if isinstance(cur_time, str) and times:
+        cur_hour_prefix = cur_time[:13]
+        for idx, t in enumerate(times):
+            if t[:13] >= cur_hour_prefix:
+                start_idx = idx
+                break
+
     hourly_points = []
-    for i in range(min(24, len(times))):
+    for i in range(start_idx, min(start_idx + 24, len(times))):
         hourly_points.append({
             "time": times[i],
             "temperature": _round(temps[i] if i < len(temps) else None),
@@ -276,27 +290,32 @@ DEMO_SCENARIOS: dict[str, dict] = {
     "1_high_rain": {
         "label": "High rainfall probability",
         "temperature": 26.0, "humidity": 82.0, "rain_probability": 84.0,
-        "expected_rainfall": 40.0, "wind_speed": 12.0, "condition": "Light rain",
+        "expected_rainfall": 40.0, "wind_speed": 12.0, "condition": "Moderate rain", "weather_code": 63,
     },
     "2_strong_wind": {
         "label": "Strong wind",
         "temperature": 22.0, "humidity": 60.0, "rain_probability": 20.0,
-        "expected_rainfall": 2.0, "wind_speed": 34.0, "condition": "Windy",
+        "expected_rainfall": 2.0, "wind_speed": 34.0, "condition": "Windy", "weather_code": 2,
     },
     "3_extreme_heat": {
         "label": "Extreme temperature",
         "temperature": 42.0, "humidity": 35.0, "rain_probability": 5.0,
-        "expected_rainfall": 0.0, "wind_speed": 10.0, "condition": "Clear sky",
+        "expected_rainfall": 0.0, "wind_speed": 10.0, "condition": "Clear sky", "weather_code": 0,
     },
     "4_low_rain_heat": {
         "label": "Low rainfall + high temperature",
         "temperature": 36.0, "humidity": 40.0, "rain_probability": 10.0,
-        "expected_rainfall": 2.0, "wind_speed": 8.0, "condition": "Mostly sunny",
+        "expected_rainfall": 2.0, "wind_speed": 8.0, "condition": "Mostly sunny", "weather_code": 1,
     },
     "5_favorable": {
         "label": "Favorable normal weather",
         "temperature": 25.0, "humidity": 60.0, "rain_probability": 20.0,
-        "expected_rainfall": 4.0, "wind_speed": 10.0, "condition": "Partly cloudy",
+        "expected_rainfall": 4.0, "wind_speed": 10.0, "condition": "Partly cloudy", "weather_code": 2,
+    },
+    "6_frost": {
+        "label": "Frost risk",
+        "temperature": -1.0, "humidity": 75.0, "rain_probability": 10.0,
+        "expected_rainfall": 0.0, "wind_speed": 8.0, "condition": "Overcast", "weather_code": 3,
     },
 }
 
@@ -305,36 +324,41 @@ def build_demo_snapshot(lat: float, lon: float, label: str, scenario: str) -> di
     """Build a WeatherSnapshot-shaped dict for a canned demonstration scenario."""
     s = DEMO_SCENARIOS[scenario]
     now = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
+    w_code = s.get("weather_code", 2)
     hourly_points = []
     for i in range(24):
         t = now + timedelta(hours=i)
+        wave = math.sin(i * math.pi / 12)
         hourly_points.append({
             "time": _iso(t),
-            "temperature": s["temperature"] + math.sin((i - 8) * math.pi / 12) * 3,
-            "humidity": s["humidity"],
-            "rain_probability": s["rain_probability"],
-            "precipitation": s["expected_rainfall"] / 12 if s["rain_probability"] > 60 else 0.0,
-            "wind_speed": s["wind_speed"],
+            "temperature": round(s["temperature"] + math.sin((i - 8) * math.pi / 12) * 3, 1),
+            "humidity": round(min(98.0, max(20.0, s["humidity"] - wave * 8)), 1),
+            "rain_probability": round(min(100.0, max(0.0, s["rain_probability"] + wave * 8)), 1),
+            "precipitation": round((s["expected_rainfall"] / 12) * (1 + 0.3 * wave), 1) if s["rain_probability"] > 60 else 0.0,
+            "wind_speed": round(max(1.0, s["wind_speed"] + math.cos(i * math.pi / 10) * 3), 1),
         })
-    daily_points = [
-        {
+    daily_points = []
+    for d in range(7):
+        day_offset = math.sin(d * 0.9)
+        daily_points.append({
             "date": (now + timedelta(days=d)).strftime("%Y-%m-%d"),
-            "weather_condition": s["condition"], "weather_code": 61,
-            "temp_max": s["temperature"] + 2, "temp_min": s["temperature"] - 6,
-            "rain_probability": s["rain_probability"], "precipitation": s["expected_rainfall"],
-            "wind_speed": s["wind_speed"],
-        }
-        for d in range(7)
-    ]
+            "weather_condition": s["condition"],
+            "weather_code": w_code,
+            "temp_max": round(s["temperature"] + 2 + day_offset * 1.5, 1),
+            "temp_min": round(s["temperature"] - 6 + day_offset * 1.0, 1),
+            "rain_probability": round(min(100.0, max(0.0, s["rain_probability"] + day_offset * 10)), 1),
+            "precipitation": round(max(0.0, s["expected_rainfall"] * (1 + 0.2 * day_offset)), 1),
+            "wind_speed": round(max(1.0, s["wind_speed"] + day_offset * 3), 1),
+        })
     return {
         "lat": lat, "lon": lon, "location_label": label or "Demo location",
         "source": "demo", "fetched_at": datetime.utcnow().isoformat(),
         "current": {
             "temperature": s["temperature"], "humidity": s["humidity"],
             "rain_probability": s["rain_probability"], "expected_rainfall": s["expected_rainfall"],
-            "precipitation": s["expected_rainfall"] / 12 if s["rain_probability"] > 60 else 0.0,
+            "precipitation": round(s["expected_rainfall"] / 12, 1) if s["rain_probability"] > 60 else 0.0,
             "wind_speed": s["wind_speed"], "wind_direction": "NE",
-            "weather_condition": s["condition"], "weather_code": 61,
+            "weather_condition": s["condition"], "weather_code": w_code,
         },
         "hourly": hourly_points, "daily": daily_points,
     }

@@ -33,8 +33,27 @@ export function severityRank(s: Severity): number {
   return SEVERITY_ORDER.indexOf(s)
 }
 
+export function parseLocalDate(iso: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    return new Date(`${iso}T12:00:00`)
+  }
+  return new Date(iso)
+}
+
+export function formatHourLabel(isoOrTime: string): string {
+  if (/^\d{2}:\d{2}$/.test(isoOrTime)) {
+    const [hh, mm] = isoOrTime.split(':').map(Number)
+    const d = new Date()
+    d.setHours(hh, mm, 0, 0)
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  }
+  const d = new Date(isoOrTime)
+  if (isNaN(d.getTime())) return isoOrTime
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
 export function formatDate(iso: string, t: (key: string) => string): string {
-  const d = new Date(iso)
+  const d = parseLocalDate(iso)
   if (isNaN(d.getTime())) return iso
   const monthName = t(`months.${d.getMonth() + 1}`)
   const day = d.getDate()
@@ -42,7 +61,7 @@ export function formatDate(iso: string, t: (key: string) => string): string {
 }
 
 export function formatDayLong(iso: string): string {
-  const d = new Date(iso)
+  const d = parseLocalDate(iso)
   if (isNaN(d.getTime())) return iso
   return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
 }

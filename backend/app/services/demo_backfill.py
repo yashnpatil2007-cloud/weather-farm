@@ -48,7 +48,7 @@ def backfill_history(db: Session, user_id: int, coord_anchors: list[tuple[float,
         db.add(FarmingActivity(
             user_id=user_id,
             activity_type=atype,
-            activity_date=(now - timedelta(days=90 - i * 8, hours=3)).date(),
+            activity_date=(now - timedelta(days=max(1, 90 - i * 6), hours=3)).date(),
             activity_time=now.time(),
             amount=20 if atype == "irrigation" else None,
             notes="Demo record",

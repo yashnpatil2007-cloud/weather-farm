@@ -62,7 +62,19 @@ export function getErrorMessage(err: unknown, fallback: string): string {
     if (typeof detail === 'string') return detail
     return fallback
   }
+  if (err instanceof Error && err.message) return err.message
   return fallback
+}
+
+function isRealBackendError(err: unknown): boolean {
+  if (getToken()?.startsWith('demo-token-')) return false
+  if (!axios.isAxiosError(err) || !err.response) return false
+  const data = err.response.data
+  return Boolean(data && typeof data === 'object' && 'detail' in data)
+}
+
+function shouldUseMockFallback(err: unknown): boolean {
+  return !isRealBackendError(err)
 }
 
 // Local storage helpers for demo mode
@@ -133,8 +145,9 @@ export const authApi = {
     try {
       const res = await api.post<TokenResponse>('/auth/register', data)
       return res.data
-    } catch {
-      // Mock fallback
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
+      // Mock fallback for offline / static deployments
       const newUser: User = {
         id: Math.floor(Math.random() * 9000) + 1000,
         full_name: data.full_name || 'Farmer',
@@ -160,6 +173,7 @@ export const authApi = {
       const res = await api.post<TokenResponse>('/auth/login', data)
       return res.data
     } catch (err) {
+      if (isRealBackendError(err)) throw err
       const emailLower = data.email.trim().toLowerCase()
       const demoAccount = DEMO_USERS[emailLower]
 
@@ -182,6 +196,7 @@ export const authApi = {
       const res = await api.get<User>('/auth/me')
       return res.data
     } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const demoUser = getSavedDemoUser()
       if (demoUser) return demoUser
       throw err
@@ -192,7 +207,8 @@ export const authApi = {
     try {
       const res = await api.patch<User>('/auth/me/language', { preferred_language })
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const demoUser = getSavedDemoUser()
       if (demoUser) {
         demoUser.preferred_language = preferred_language
@@ -230,7 +246,8 @@ export const farmsApi = {
     try {
       const res = await api.get<Farm[]>('/farms')
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return getSavedFarms()
     }
   },
@@ -238,7 +255,8 @@ export const farmsApi = {
     try {
       const res = await api.post<Farm>('/farms', data)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const farms = getSavedFarms()
       const newFarm: Farm = {
         id: Date.now(),
@@ -259,7 +277,8 @@ export const farmsApi = {
     try {
       const res = await api.patch<Farm>(`/farms/${id}`, data)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const farms = getSavedFarms()
       const idx = farms.findIndex((f) => f.id === id)
       if (idx !== -1) {
@@ -274,7 +293,8 @@ export const farmsApi = {
     try {
       const res = await api.delete(`/farms/${id}`)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const farms = getSavedFarms().filter((f) => f.id !== id)
       saveFarms(farms)
       return { ok: true }
@@ -296,7 +316,8 @@ export const farmsApi = {
     try {
       const res = await api.post<Field>(`/farms/${farmId}/fields`, { ...data, size_hectares: acresToHa })
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const farms = getSavedFarms()
       const farm = farms.find((f) => f.id === farmId)
       const crop = DEMO_CROPS.find((c) => c.id === data.crop_id) || null
@@ -338,7 +359,8 @@ export const farmsApi = {
     try {
       const res = await api.patch<Field>(`/fields/${id}`, payload)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const farms = getSavedFarms()
       for (const farm of farms) {
         const fieldIdx = (farm.fields || []).findIndex((f) => f.id === id)
@@ -360,7 +382,8 @@ export const farmsApi = {
     try {
       const res = await api.delete(`/fields/${id}`)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const farms = getSavedFarms()
       for (const farm of farms) {
         if (farm.fields) {
@@ -387,7 +410,8 @@ export const weatherApi = {
     try {
       const res = await api.get<GeocodeResult[]>(`/weather/geocode`, { params: { q } })
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return [
         { name: q, latitude: 18.6714, longitude: 73.889, country: 'India', admin1: 'Maharashtra' },
         { name: 'Pune', latitude: 18.5204, longitude: 73.8567, country: 'India', admin1: 'Maharashtra' },
@@ -399,7 +423,8 @@ export const weatherApi = {
     try {
       const res = await api.get<WeatherSnapshot>('/weather/current', { params: { lat, lon, label, scenario } })
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return {
         ...DEMO_WEATHER,
         lat: lat || DEMO_WEATHER.lat,
@@ -416,7 +441,8 @@ export const recommendationsApi = {
     try {
       const res = await api.post<GenerateResponse>(`/recommendations/generate/${_fieldId}`)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return {
         weather: DEMO_WEATHER,
         recommendations: DEMO_RECOMMENDATIONS,
@@ -429,19 +455,56 @@ export const recommendationsApi = {
     try {
       const res = await api.post<GenerateResponse>(`/recommendations/simulate/${_fieldId}`, null, { params: { scenario } })
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
+      const nowIso = new Date().toISOString()
+      const scenarios: Record<string, { temp: number; hum: number; prob: number; rain: number; wind: number; cond: string; code: number; rec: Recommendation }> = {
+        '1_high_rain': {
+          temp: 26, hum: 82, prob: 84, rain: 40, wind: 12, cond: 'Moderate rain', code: 63,
+          rec: { id: 901, field_id: _fieldId, severity: 'critical', category: 'drainage', title: 'Heavy rainfall — check drainage', situation: 'Expected rainfall is 40 mm within the next 12 hours.', impact: 'Excess water can waterlog the roots and damage the crop.', action: 'Check field drainage, clear blocked channels and do not irrigate.', rule_code: 'check_drainage', factors: { expected_rainfall: 40 }, created_at: nowIso },
+        },
+        '2_strong_wind': {
+          temp: 22, hum: 60, prob: 20, rain: 2, wind: 34, cond: 'Windy', code: 2,
+          rec: { id: 902, field_id: _fieldId, severity: 'warning', category: 'spraying', title: 'Windy — postpone pesticide spraying', situation: 'Wind speed is 34 km/h, above the safe limit for spraying.', impact: 'Spraying in wind drifts onto neighbouring areas and reduces effectiveness.', action: 'Postpone pesticide or foliar spraying until the wind drops below the safe limit.', rule_code: 'pause_spraying', factors: { wind_speed: 34 }, created_at: nowIso },
+        },
+        '3_extreme_heat': {
+          temp: 42, hum: 35, prob: 5, rain: 0, wind: 10, cond: 'Clear sky', code: 0,
+          rec: { id: 903, field_id: _fieldId, severity: 'critical', category: 'heat_stress', title: 'Heat stress — protect the crop', situation: 'Temperature is 42°C, above the heat-stress threshold for Tomato.', impact: 'High heat can scorch leaves, abort flowers and cut yields.', action: 'Provide shade or mulch, irrigate during the cooler hours, and check for wilting.', rule_code: 'heat_stress_warning', factors: { temperature: 42 }, created_at: nowIso },
+        },
+        '4_low_rain_heat': {
+          temp: 36, hum: 40, prob: 10, rain: 2, wind: 8, cond: 'Mainly clear', code: 1,
+          rec: { id: 904, field_id: _fieldId, severity: 'caution', category: 'irrigation', title: 'Dry and hot — keep watch on soil moisture', situation: 'Rainfall is low (2 mm) while temperature is 36°C.', impact: 'Soil moisture depletes quickly and the crop may face moisture stress.', action: 'Monitor soil moisture and plan irrigation if the soil is drying faster than normal.', rule_code: 'monitor_irrigation', factors: { expected_rainfall: 2, temperature: 36 }, created_at: nowIso },
+        },
+        '5_favorable': {
+          temp: 25, hum: 60, prob: 20, rain: 4, wind: 10, cond: 'Partly cloudy', code: 2,
+          rec: { id: 905, field_id: _fieldId, severity: 'favorable', category: 'general', title: 'Favorable conditions for planned work', situation: 'Current weather is mild and favourable for most farm work.', impact: 'No weather-related risk is currently detected for the crop.', action: 'Proceed with planned activities as scheduled, but always double-check the sky before you start.', rule_code: 'favorable_conditions', factors: { temperature: 25 }, created_at: nowIso },
+        },
+        '6_frost': {
+          temp: -1, hum: 75, prob: 10, rain: 0, wind: 8, cond: 'Overcast', code: 3,
+          rec: { id: 906, field_id: _fieldId, severity: 'warning', category: 'frost', title: 'Frost risk', situation: 'Temperature is -1°C — frost risk for the crop.', impact: 'Frost can damage young plants and flowers.', action: 'Delay sowing, cover sensitive plants, or use irrigation-based frost protection.', rule_code: 'frost_warning', factors: { temperature: -1 }, created_at: nowIso },
+        },
+      }
+      const s = scenarios[scenario] || scenarios['5_favorable']
       return {
         weather: {
           ...DEMO_WEATHER,
+          source: 'demo',
           current: {
             ...DEMO_WEATHER.current,
-            weather_condition: scenario.includes('rain') ? 'Heavy Rain' : 'Moderate Weather',
-            rain_probability: scenario.includes('rain') ? 85 : 20,
+            temperature: s.temp,
+            humidity: s.hum,
+            rain_probability: s.prob,
+            expected_rainfall: s.rain,
+            wind_speed: s.wind,
+            weather_condition: s.cond,
+            weather_code: s.code,
           },
         },
-        recommendations: DEMO_RECOMMENDATIONS,
-        alerts: DEMO_ALERTS.map((a) => ({ id: a.id, severity: a.severity, weather_condition: a.weather_condition })),
-        rule_matches: DEMO_RECOMMENDATIONS.length,
+        recommendations: [s.rec],
+        alerts: s.rec.severity === 'warning' || s.rec.severity === 'critical'
+          ? [{ id: s.rec.id, severity: s.rec.severity, weather_condition: s.rec.situation || s.rec.title }]
+          : [],
+        rule_matches: 1,
       }
     }
   },
@@ -451,7 +514,8 @@ export const recommendationsApi = {
         params: { field_id: _fieldId, limit: _limit, ...(_days !== undefined ? { days: _days } : {}) },
       })
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return DEMO_RECOMMENDATIONS
     }
   },
@@ -463,7 +527,8 @@ export const alertsApi = {
     try {
       const res = await api.get<Alert[]>('/alerts', { params: { limit: _limit } })
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return getSavedAlerts()
     }
   },
@@ -471,7 +536,8 @@ export const alertsApi = {
     try {
       const res = await api.get<{ count: number }>('/alerts/unread-count')
       return res.data.count
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return getSavedAlerts().filter((a) => !a.is_read).length
     }
   },
@@ -479,7 +545,8 @@ export const alertsApi = {
     try {
       const res = await api.post<Alert>(`/alerts/${id}/read`)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const alerts = getSavedAlerts()
       const alert = alerts.find((a) => a.id === id)
       if (alert) {
@@ -494,7 +561,8 @@ export const alertsApi = {
     try {
       const res = await api.post<{ updated: number }>('/alerts/read-all')
       return res.data.updated
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const alerts = getSavedAlerts()
       alerts.forEach((a) => (a.is_read = true))
       saveAlerts(alerts)
@@ -509,7 +577,8 @@ export const activitiesApi = {
     try {
       const res = await api.get<Activity[]>('/activities')
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return getSavedActivities()
     }
   },
@@ -517,7 +586,8 @@ export const activitiesApi = {
     try {
       const res = await api.post<Activity>('/activities', data)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const acts = getSavedActivities()
       const newAct: Activity = {
         id: Date.now(),
@@ -539,7 +609,8 @@ export const activitiesApi = {
     try {
       const res = await api.patch<Activity>(`/activities/${id}`, data)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const acts = getSavedActivities()
       const idx = acts.findIndex((a) => a.id === id)
       if (idx !== -1) {
@@ -554,7 +625,8 @@ export const activitiesApi = {
     try {
       const res = await api.delete(`/activities/${id}`)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const acts = getSavedActivities().filter((a) => a.id !== id)
       saveActivities(acts)
       return { ok: true }
@@ -578,14 +650,13 @@ export const analyticsApi = {
     try {
       const res = await api.get<Record<string, unknown>>('/analytics/overview', { params: { period } })
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return {
-        total_farms: 1,
-        total_fields: 2,
-        active_crops: 2,
-        total_recommendations: 18,
-        active_alerts: 1,
-        water_saved_percent: 24.5,
+        recommendations_generated: DEMO_RECOMMENDATIONS.length,
+        alerts_received: DEMO_ALERTS.length,
+        unread_alerts: DEMO_ALERTS.filter((a) => !a.is_read).length,
+        activities_recorded: DEMO_ACTIVITIES.length,
       }
     }
   },
@@ -593,11 +664,14 @@ export const analyticsApi = {
     try {
       const res = await api.get<Record<string, unknown>[]>('/analytics/weather', { params: { period } })
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return DEMO_WEATHER.daily.map((d) => ({
         date: d.date,
-        avg_temp: (d.temp_max + d.temp_min) / 2,
-        rain: d.precipitation,
+        avg_temp: Math.round(((d.temp_max + d.temp_min) / 2) * 10) / 10,
+        avg_humidity: 58,
+        avg_rainfall: d.precipitation,
+        max_rain_prob: d.rain_probability,
       }))
     }
   },
@@ -605,11 +679,12 @@ export const analyticsApi = {
     try {
       const res = await api.get<Record<string, unknown>[]>('/analytics/irrigation', { params: { period } })
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return [
-        { date: '2026-11-12', water_liters: 1200 },
-        { date: '2026-11-14', water_liters: 1500 },
-        { date: '2026-11-16', water_liters: 800 },
+        { date: '2026-11-12', irrigations: 1 },
+        { date: '2026-11-14', irrigations: 2 },
+        { date: '2026-11-16', irrigations: 1 },
       ]
     }
   },
@@ -617,8 +692,13 @@ export const analyticsApi = {
     try {
       const res = await api.get<Record<string, unknown>[]>('/analytics/alerts', { params: { period } })
       return res.data
-    } catch {
-      return DEMO_ALERTS.map((a) => ({ date: a.created_at, count: 1 }))
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
+      return DEMO_ALERTS.map((a) => ({
+        date: a.created_at.slice(0, 10),
+        severity: a.severity,
+        count: 1,
+      }))
     }
   },
 }
@@ -629,12 +709,16 @@ export const adminApi = {
     try {
       const res = await api.get<Record<string, number>>('/admin/stats')
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return {
-        users: 15,
-        farms: 22,
-        fields: 58,
+        total_users: Object.keys(DEMO_USERS).length,
+        active_users: Object.keys(DEMO_USERS).length,
+        farms: DEMO_FARMS.length,
+        fields: DEMO_FARMS.reduce((s, f) => s + f.fields.length, 0),
         crops: DEMO_CROPS.length,
+        recommendations: DEMO_RECOMMENDATIONS.length,
+        alerts: DEMO_ALERTS.length,
         rules: DEMO_RULES.length,
       }
     }
@@ -643,15 +727,17 @@ export const adminApi = {
     try {
       const res = await api.get<Record<string, unknown>[]>('/admin/users')
       return res.data
-    } catch {
-      return Object.values(DEMO_USERS).map((d) => d.user)
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
+      return Object.values(DEMO_USERS).map((d) => ({ ...d.user, farm_count: 1, field_count: 2 }))
     }
   },
   updateUser: async (id: number, data: { is_active?: boolean; role?: string }) => {
     try {
       const res = await api.patch<Record<string, unknown>>(`/admin/users/${id}`, data)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return { id, ...data }
     }
   },
@@ -659,7 +745,8 @@ export const adminApi = {
     try {
       const res = await api.get<Record<string, unknown>[]>('/admin/farms')
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return getSavedFarms()
     }
   },
@@ -667,7 +754,8 @@ export const adminApi = {
     try {
       const res = await api.get<Crop[]>('/admin/crops')
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return DEMO_CROPS
     }
   },
@@ -675,7 +763,8 @@ export const adminApi = {
     try {
       const res = await api.post<Crop>('/admin/crops', data)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const newCrop: Crop = {
         id: Date.now(),
         name: data.name || 'New Crop',
@@ -696,7 +785,8 @@ export const adminApi = {
     try {
       const res = await api.patch<Crop>(`/admin/crops/${id}`, data)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const crop = DEMO_CROPS.find((c) => c.id === id) || DEMO_CROPS[0]
       return { ...crop, ...data }
     }
@@ -705,7 +795,8 @@ export const adminApi = {
     try {
       const res = await api.delete(`/admin/crops/${id}`)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return { ok: true }
     }
   },
@@ -713,7 +804,8 @@ export const adminApi = {
     try {
       const res = await api.get<Rule[]>('/admin/rules')
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return DEMO_RULES
     }
   },
@@ -721,7 +813,8 @@ export const adminApi = {
     try {
       const res = await api.post<Rule>('/admin/rules', data)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const newRule: Rule = {
         id: Date.now(),
         code: data.code || 'custom_rule',
@@ -740,7 +833,8 @@ export const adminApi = {
     try {
       const res = await api.patch<Rule>(`/admin/rules/${id}`, data)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       const rule = DEMO_RULES.find((r) => r.id === id) || DEMO_RULES[0]
       return { ...rule, ...data }
     }
@@ -749,7 +843,8 @@ export const adminApi = {
     try {
       const res = await api.delete(`/admin/rules/${id}`)
       return res.data
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err
       return { ok: true }
     }
   },

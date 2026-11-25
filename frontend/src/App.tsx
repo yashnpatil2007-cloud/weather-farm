@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { type ReactNode } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { StoreProvider, useStore } from './context/StoreContext'
@@ -43,14 +43,17 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function NeedsOnboarding({ children }: { children: React.ReactNode }) {
+function NeedsOnboarding({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
   const { farms, loading: storeLoading } = useStore()
-  const [checked, setChecked] = useState(false)
-  useEffect(() => {
-    if (!storeLoading) setChecked(true)
-  }, [storeLoading])
-  if (!checked) return null
-  if (farms.length === 0) return <Navigate to="/onboarding" replace />
+  if (storeLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    )
+  }
+  if (user?.role !== 'admin' && farms.length === 0) return <Navigate to="/onboarding" replace />
   return <>{children}</>
 }
 

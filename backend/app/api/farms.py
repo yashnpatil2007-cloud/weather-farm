@@ -4,11 +4,18 @@ from sqlalchemy.orm import Session
 
 from ..core.database import get_db
 from ..core.security import get_current_user
-from ..models import Farm, Field, User
+from ..models import Alert, Farm, FarmingActivity, Field, Recommendation, User
 from ..schemas import FarmCreate, FarmRead, FarmUpdate, FieldCreate, FieldRead, FieldUpdate
 from .dependencies import get_owned_farm, get_owned_field
 
 router = APIRouter(prefix="", tags=["Farms"])
+
+
+def _detach_field_references(db: Session, field_ids: list[int]) -> None:
+    if not field_ids:
+        return
+    for model in (Recommendation, Alert, FarmingActivity):
+        db.query(model).filter(model.field_id.in_(field_ids)).update({"field_id": None}, synchronize_session=False)
 
 
 @router.get("/farms", response_model=list[FarmRead])
@@ -75,6 +82,10 @@ def update_farm(farm_id: int, payload: FarmUpdate, current_user: User = Depends(
     farm = get_owned_farm(db, current_user, farm_id)
     for key, value in payload.model_dump(exclude_unset=True).items():
         if value is not None:
+            if key in ("name", "location"):
+                value = value.strip()
+                if not value:
+                    raise HTTPException(status_code=422, detail=f"{key} cannot be empty.")
             setattr(farm, key, value)
     db.commit()
     db.refresh(farm)
@@ -84,6 +95,7 @@ def update_farm(farm_id: int, payload: FarmUpdate, current_user: User = Depends(
 @router.delete("/farms/{farm_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_farm(farm_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     farm = get_owned_farm(db, current_user, farm_id)
+    _detach_field_references(db, [f.id for f in farm.fields])
     db.delete(farm)
     db.commit()
 
@@ -126,6 +138,10 @@ def update_field(field_id: int, payload: FieldUpdate, current_user: User = Depen
         raise HTTPException(status_code=400, detail="Selected growth stage does not exist.")
     for key, value in data.items():
         if value is not None or key in ("crop_id", "growth_stage_id"):
+            if key == "name" and value is not None:
+                value = value.strip()
+                if not value:
+                    raise HTTPException(status_code=422, detail="name cannot be empty.")
             setattr(field, key, value)
     db.commit()
     db.refresh(field)
@@ -136,6 +152,7 @@ def update_field(field_id: int, payload: FieldUpdate, current_user: User = Depen
 def delete_field(field_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     field = get_owned_field(db, current_user, field_id)
     farm = field.farm
+    _detach_field_references(db, [field.id])
     db.delete(field)
     db.commit()
     db.refresh(farm)

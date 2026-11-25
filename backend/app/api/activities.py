@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..core.database import get_db
 from ..core.security import get_current_user
-from ..models import FarmingActivity, User
+from ..models import Crop, FarmingActivity, User
 from ..schemas import ActivityCreate, ActivityRead, ActivityUpdate
 from .dependencies import get_owned_field
 
@@ -56,9 +56,12 @@ def create_activity(payload: ActivityCreate, current_user: User = Depends(get_cu
 
     if payload.field_id:
         field = get_owned_field(db, current_user, payload.field_id)
-        crop_id = payload.crop_id or field.crop_id if field else None
+        crop_id = payload.crop_id or (field.crop_id if field else None)
     else:
         field, crop_id = None, payload.crop_id
+
+    if crop_id is not None and db.get(Crop, crop_id) is None:
+        raise HTTPException(status_code=400, detail="Selected crop does not exist.")
 
     activity = FarmingActivity(
         user_id=current_user.id,
